@@ -1,0 +1,642 @@
+---
+title: "Ames Housing Project"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(skimr)
+library(DataExplorer)
+library(caret)
+library(corrplot)
+```
+# Summary
+- [Contexte du dataset](#contexte-du-dataset-ames-housing)
+- [Nettoyage de donnees](#préparation-du-jeu-de-données--nettoyage-et-gestion-des-valeurs-manquantes)
+- [Data Summary](#paramètres-statistiques-usuels)
+- [Analysis](#analysis)
+
+
+
+
+# Contexte du dataset Ames Housing
+##### Le dataset "Ames Housing" a été créé par Dean De Cock dans le but de proposer une alternative plus complexe et réaliste au célèbre dataset "Boston Housing" utilisé en apprentissage automatique. Il contient des informations détaillées sur les ventes de maisons à Ames, Iowa (États-Unis), sur une période couvrant plusieurs années.
+
+##### Ce jeu de données est largement utilisé pour des projets de régression, notamment pour prédire le prix de vente d’une maison (SalePrice) en fonction de nombreuses caractéristiques.
+
+##### Il se distingue par la richesse de ses variables : il comporte plus de 70 colonnes, qui couvrent à la fois des données numériques (ex. : surface habitable, année de construction) et catégorielles (ex. : type de garage, style de maison, quartier).
+
+##### Ce dataset est idéal pour explorer :
+
+- la préparation des données (nettoyage, gestion des valeurs manquantes, encodage),
+
+- l’analyse exploratoire (EDA).
+
+- la modélisation prédictive (régression linéaire, arbres de décision, etc.).
+
+- la sélection de variables importantes qui influencent le prix d'une maison.
+```{r load-data}
+df <- read.csv("./AmesHousing.csv")
+head(df)
+```
+#### <span style="color:red"> --> La commande permet d’afficher un aperçu du dataframe</span>
+```{r}
+dim(df)
+```
+#### <span style="color:red">--> Le dataframe Ames Housing comprend 2930 observations et 82 variables décrivant les caractéristiques des maisons à Ames, Iowa , avec comme objectif principal la prédiction du prix de vente (SalePrice).</span>
+```{r}
+str(df)
+```
+#### Types de données :
+- 28 colonnes numériques :
+Ces colonnes contiennent des valeurs continues ou discrètes (ex. : surface du terrain, surface habitable, nombre de chambres).
+- 43 colonnes catégorielles :Ces colonnes représentent des caractéristiques qualitatives, telles que le type de rue, le type de toiture, ou encore le quartier.Certaines colonnes comportent des valeurs manquantes, telles que Alley, Mas Vnr Type, et Pool QC, ce qui peut nécessiter un traitement spécifique .
+
+
+# Préparation du Jeu de Données : Nettoyage et Gestion des Valeurs Manquantes
+### 1/Supprimer l'espace dans le nom du colonne:
+```{r}
+names(df) <- gsub(" ", "", names(df))
+```
+### 2/Supprimer la colonne PID(ID):
+```{r}
+df$PID <- NULL
+```
+Verifier que la colonne a ete supprime:
+```{r}
+dim(df)
+```
+### 3/Gérer les valeurs manquantes:
+```{r}
+# Calculer le pourcentage de valeurs manquantes
+pourcentage <- colSums(is.na(df)) / nrow(df) * 100
+
+# Afficher les colonnes avec des valeurs manquantes et leur pourcentage
+pourcentage[pourcentage > 0][order(-pourcentage[pourcentage > 0])]
+
+```
+#### a- Si une colonne a plus de 40% de valeurs manquantes, on la supprime:
+```{r}
+# Identifier les colonnes avec plus de 40% de valeurs manquantes
+colonnes_supprimer <- names(pourcentage[pourcentage > 40])
+
+# Supprimer les colonnes avec plus de 40% de valeurs manquantes
+df <- df[, !(names(df) %in% colonnes_supprimer)]
+```
+#### b- Pour les colonnes ayant moins de 40% de valeurs manquantes, on remplace les valeurs manquantes par la médiane (pour les variables numériques) ou le mode (pour les variables catégorielles) :
+```{r}
+for (col in names(df)) {
+  if (any(is.na(df[[col]]))) {
+    if (is.numeric(df[[col]])) {
+      # Remplacer les NA par la médiane pour les colonnes numériques
+      df[[col]][is.na(df[[col]])] <- median(df[[col]], na.rm = TRUE)
+    } else {
+      # Remplacer les NA par la valeur la plus fréquente (mode) pour les colonnes catégorielles
+      mode_val <- names(sort(table(df[[col]]), decreasing = TRUE))[1]
+      df[[col]][is.na(df[[col]])] <- mode_val
+    }
+  }
+}
+```
+#### c- Verification :
+```{r}
+# Calculer le pourcentage de valeurs manquantes
+pourcentage <- colSums(is.na(df)) / nrow(df) * 100
+
+# Afficher les colonnes avec des valeurs manquantes et leur pourcentage
+pourcentage[pourcentage > 0][order(-pourcentage[pourcentage > 0])]
+
+```
+#### <span style="color:red"> --> Aucune valeur manquante.<span>
+### 4/Gérer les doublons:
+```{r}
+doublons <- sum(duplicated(df))
+print(doublons)
+```
+#### <span style="color:red"> --> Il n'y a aucune ligne dupliquée dans le DataFrame<span>
+
+# Paramètres statistiques usuels
+### 1/Table de statistiques descriptives:
+
+```{r}
+summary(df)
+```
+# Paramètres statistiques usuels
+
+
+
+
+
+
+
+
+
+# Analyses univariées 
+## Catégorielles :
+1 - La variable Neighborhood représente le quartier où se situe chaque maison dans la ville d’Ames. C’est une variable catégorielle avec plusieurs modalités, chacune correspondant à un quartier différent.
+```{r}
+table(df$Neighborhood)
+barplot(table(df$Neighborhood), las=2, col="steelblue")
+```
+#### <span style="color:red"> --> Le résultat montre combien de maisons sont présentes dans chaque quartier du dataset. Par exemple :
+
+- Le quartier NAmes contient 443 maisons, c’est le plus représenté.
+
+- CollgCr en a 267, OldTown en a 239, etc.
+
+- Certains quartiers comme Landmrk ou GrnHill ont très peu d’observations (1 ou 2 maisons). <span>
+
+
+
+## Numériques  :
+### 1/Variable continue:
+On va analyser la variable continue SalePrice — Prix de vente de la maison 
+
+```{r}
+# Créer l'histogramme
+hist_obj <- hist(df$SalePrice,
+     col = "blue",
+     border = "white",
+     labels = TRUE,
+     xlab = "Prix de vente (en dollars)",
+     ylab = "Nombre d'observations",
+     main = "Histogramme du prix de vente des maisons")
+
+# Ajuster les limites de l'axe des y en fonction de la fréquence maximale
+ylim <- c(0, max(hist_obj$counts) + 50)  # Ajouter un peu d'espace au-dessus de la fréquence maximale
+
+# Redessiner l'histogramme avec les limites ajustées de l'axe des y
+hist(df$SalePrice,
+     col = "blue",
+     border = "white",
+     ylim = ylim,
+     labels = TRUE,
+     xlab = "Prix de vente (en dollars)",
+     ylab = "Nombre d'observations",
+     main = "Histogramme du prix de vente des maisons")
+```
+#### <span style="color:red"> --> L'histogramme de 'SalePrice' montre que les prix de vente sont majoritairement concentrés sur la gauche de la distribution, ce qui signifie qu'une grande partie des maisons ont des prix relativement bas. Il y a probablement quelques maisons très chères qui créent une queue à droite (valeurs extrêmes), mais la majorité des prix se situe dans une plage plus modeste. Cela suggère une distribution asymétrique à droite.
+1. Forme :
+La distribution est asymétrique à droite, avec une majorité de maisons ayant des prix de vente plus bas. Une queue à droite est présente, ce qui signifie que quelques maisons ont des prix beaucoup plus élevés que la majorité.
+
+2. Centre :
+Le centre de la distribution se situe autour de 180,000 USD. Cela suggère que la médiane et la moyenne sont probablement proches, bien que la queue à droite puisse influencer légèrement la moyenne vers le haut.
+
+3. Dispersion :
+La dispersion des prix de vente est assez large, avec des prix allant de relativement bas à très élevés. Les 1er et 3e quartiles (120,000 USD et 250,000 USD) capturent la majorité des données, et l'IQR reflète la variabilité des prix sans être affecté par les valeurs extrêmes.
+
+4. Outliers (valeurs aberrantes) :
+Les outliers sont présents dans la queue à droite de la distribution, où l'on observe des maisons dont les prix sont beaucoup plus élevés que la majorité. Ces valeurs peuvent être identifiées comme des outliers en utilisant l'IQR, par exemple, toute valeur supérieure à 250,000 + 1,5 * IQR pourrait être considérée comme un outlier.<span>
+```{r}
+plot (density(df$SalePrice), main="Estimateur à noyau",
+xlab="Taille en cm")
+```
+
+### 2/Variable discrete:
+On va analyser la variable discrète MS Zoning — la condition extérieure des maisons
+```{r}
+q=(levels(factor(df$`Garage.Cars`)))
+q
+```
+
+```{r}
+freq_table <- table(df$`Garage.Cars`)
+prc <- (freq_table / nrow(df)) * 100
+prc <- round(prc, 3)  # 3 chiffres apres virgule
+prc
+
+```
+#### <span style="color:red"> --> La fonction table() joue montre la distribution de fréquence de la variable MS Zoning
+#### La variable 'MS Zoning' indique la classification des zones dans lesquelles se trouvent les propriétés. Elle contient différentes catégories : <span>
+- RL (Residential Low Density) : Zones résidentielles à faible densité (majoritaire avec 2273 enregistrements).
+- RM (Residential Medium Density) : Zones résidentielles à densité moyenne (462 enregistrements).
+- FV (Floating Village Residential) : Zones résidentielles flottantes (139 enregistrements).
+- RH (Residential High Density) : Zones résidentielles à haute densité (27 enregistrements).
+- C (all) : Zones commerciales (25 enregistrements).
+- I (all) : Zones industrielles (2 enregistrements).
+- A (agr) : Zones agricoles (2 enregistrements).
+```{r}
+pie(freq_table, 
+    col = rainbow(length(q)), 
+    labels = paste(q, prc, "%"), 
+    radius = 1.3)
+```
+
+
+
+
+
+
+```{r}
+library(plotrix)
+pie3D(freq_table, 
+      explode = 0.1, 
+      main = "Distribution de la variable GarageCars", 
+      labels = paste(q, "-", prc, "%"))
+```
+
+
+
+
+
+
+
+
+
+
+# Analyses bivariées 
+### 1/Deux variables quantitatives:
+On choisit ici :
+
+- Year.Built : year the house was built,
+
+- TotRms.AbvGrd : total number of rooms above ground.
+
+```{r}
+options(scipen = 999)  # Désactive la notation scientifique
+
+plot(x = df$TotRms.AbvGrd, y = df$SalePrice,
+     xlab = "Nombre total de pièces hors sous-sol",
+     ylab = "Prix de vente (SalePrice)",
+     main = "Relation entre le nombre de pièces et le prix de vente",
+     pch = 16, col = "darkblue")
+
+
+```
+```{r}
+library(MASS)
+options(scipen = 999)
+
+# Sélection des deux variables et suppression des NA
+tmp <- df[, c("TotRms.AbvGrd", "SalePrice")]
+tmp <- tmp[complete.cases(tmp), ]
+
+# Densité 2D
+dens <- kde2d(tmp$TotRms.AbvGrd, tmp$SalePrice)
+
+# Représentation
+filled.contour(dens,
+               color = terrain.colors,
+               xlab = "Nombre total de pièces",
+               ylab = "Prix de vente",
+               main = "Carte de densité : TotRms.AbvGrd vs SalePrice")
+
+
+```
+
+```{r}
+options(scipen = 999)  # Pour éviter la notation scientifique
+
+# Premier quartier : NAmes (bleu)
+plot(df$TotRms.AbvGrd[df$Neighborhood == "NAmes"],
+     df$SalePrice[df$Neighborhood == "NAmes"],
+     pch = 16, col = "blue",
+     main = "Prix de vente selon le nombre de pièces\n(NAmes vs OldTown)",
+     xlab = "Nombre total de pièces hors sous-sol",
+     ylab = "Prix de vente", las = 1)
+
+# Deuxième quartier : OldTown (rouge)
+points(df$TotRms.AbvGrd[df$Neighborhood == "OldTown"],
+       df$SalePrice[df$Neighborhood == "OldTown"],
+       pch = 17, col = "red")
+
+# Légende
+legend("topleft", legend = c("NAmes", "OldTown"),
+       col = c("blue", "red"), pch = c(16, 17))
+
+```
+
+
+```{r}
+correlation <- cor(df$SalePrice, df$TotRms.AbvGrd, use = "complete.obs")
+print(paste("Coefficient de corrélation: ", correlation))
+```
+
+
+
+```{r}
+regression_model <- lm(SalePrice ~ TotRms.AbvGrd, data = df)
+summary(regression_model)
+
+```
+
+
+
+
+
+
+```{r}
+# Visualisation
+plot(df$TotRms.AbvGrd, df$SalePrice, main = "Relation entre Prix de la maison et Nombre de pièces",
+     xlab = "Nombre de pièces (TotRms.AbvGrd)", ylab = "Prix de vente (SalePrice)", col = "blue", pch = 15)
+abline(regression_model, col = "deepskyblue4")
+
+```
+
+
+
+
+
+```{r}
+# Calcul du coefficient de corrélation entre Year.Built et TotRms.AbvGrd
+correlation <- cor(df$Year.Built, df$TotRms.AbvGrd, use = "complete.obs")
+print(correlation)
+
+
+```
+
+
+
+```{r}
+# Charger le dataset (remplacez le chemin par celui où se trouv
+# Intervalle de confiance pour SalePrice
+result_saleprice <- t.test(df$SalePrice)
+cat("Intervalle de confiance pour SalePrice:\n")
+print(result_saleprice$conf.int)
+
+# Intervalle de confiance pour TotRms.AbvGrd
+result_totrms <- t.test(df$TotRms.AbvGrd)
+cat("\nIntervalle de confiance pour TotRms.AbvGrd:\n")
+print(result_totrms$conf.int)
+
+```
+
+
+
+```{r}
+# Create a contingency table for GarageFinish and GarageType
+table_contingence <- table(df$Garage.Finish, df$Garage.Type)
+
+# Display the contingency table
+table_contingence
+prop.table(table_contingence)
+
+```
+
+
+
+```{r}
+# Perform Chi-Square Test
+chisq_test <- chisq.test(table_contingence)
+
+# Display the test results
+chisq_test
+
+```
+
+
+```{r}
+# Apply Fisher's Exact Test
+fisher.test(df$Central.Air, df$Fireplaces)
+
+```
+
+
+```{r}
+# Create a mosaic plot
+mosaicplot(table_contingence, main = "Mosaic Plot: GarageFinish vs GarageType", 
+           color = c("lightblue", "lightgreen", "lightcoral"), 
+           xlab = "Garage Finish", ylab = "Garage Type")
+
+
+```
+
+
+```{r}
+# Charger la bibliothèque FactoMineR
+library(FactoMineR)
+
+# Réalisation de l'AFC
+resultat_afc <- CA(table_contingence, graph = TRUE)
+
+# Affichage des résultats
+resultat_afc
+
+```
+
+
+```{r}
+# Récupérer les valeurs propres directement depuis l'objet `resultat_afc`
+valeurs_propres <- resultat_afc$eig
+
+# Afficher les valeurs propres
+valeurs_propres
+
+
+```
+
+
+```{r}
+# Charger les bibliothèques nécessaires
+library(FactoMineR)
+library(factoextra)
+
+# Exécution de l'AFC sur un tableau de contingence (exemple avec deux variables qualitatives)
+resultat_afc <- CA(table_contingence, graph = FALSE)
+
+# Visualisation des valeurs propres
+fviz_eig(resultat_afc)
+
+```
+
+
+```{r}
+fviz_ca_biplot(resultat_afc)
+
+```
+
+
+```{r}
+row = get_ca_row(resultat_afc)
+row
+```
+
+
+```{r}
+corrplot(row$cos2, is.corr=FALSE, method="number")
+
+```
+```{r}
+numeric_data <- df %>% select_if(is.numeric)
+numeric_data_scaled <- scale(numeric_data)
+```
+
+```{r}
+pca_result <- prcomp(numeric_data_scaled, center = TRUE, scale. = TRUE)
+
+# Summary of PCA results
+summary(pca_result)
+```
+
+```{r}
+corrplot(row$cos2, is.corr=FALSE, method="number")
+
+```
+
+```{r}
+corrplot(row$cos2, is.corr=FALSE, method="number")
+
+```
+
+```{r}
+corrplot(row$cos2, is.corr=FALSE, method="number")
+
+```
+
+
+```{r}
+corrplot(row$cos2, is.corr=FALSE, method="number")
+
+```
+
+
+```{r}
+# Prepare the data
+ames_numeric <- df[, sapply(df, is.numeric)]
+ames_numeric[is.na(ames_numeric)] <- apply(ames_numeric, 2, function(x) mean(x, na.rm = TRUE))
+
+# Apply K-Means Clustering
+set.seed(42)
+kmeans_model <- kmeans(ames_numeric, centers = 3, nstart = 25)
+
+# Plot clusters
+library(ggplot2)
+ggplot(ames_numeric, aes(x = Gr.Liv.Area, y = SalePrice, color = factor(kmeans_model$cluster))) +
+  geom_point() +
+  ggtitle("K-Means Clustering of Houses")
+
+
+```
+
+
+```{r}
+# Sélection des variables numériques d'intérêt
+selected_variables <- df[, c("Gr.Liv.Area", "Overall.Qual", "SalePrice", "Garage.Cars", "TotRms.AbvGrd")]
+
+# Gestion des valeurs manquantes en remplaçant par la moyenne
+selected_variables[is.na(selected_variables)] <- apply(selected_variables, 2, function(x) mean(x, na.rm = TRUE))
+
+# Vérification des données préparées
+head(selected_variables)
+
+
+```
+```{r}
+# Sélection des variables numériques d'intérêt
+selected_variables <- df[, c("Gr.Liv.Area", "Overall.Qual", "SalePrice", "Garage.Cars", "TotRms.AbvGrd")]
+
+# Gestion des valeurs manquantes en remplaçant par la moyenne
+selected_variables[is.na(selected_variables)] <- apply(selected_variables, 2, function(x) mean(x, na.rm = TRUE))
+
+# Vérification des données préparées
+head(selected_variables)
+
+
+```
+
+```{r}
+# Normalisation des données (important pour PCA)
+scaled_data <- scale(selected_variables)
+
+# Réalisation de la PCA
+library(FactoMineR)
+pca_result <- PCA(scaled_data, graph = FALSE)
+
+# Visualisation des résultats de la PCA
+library(factoextra)
+fviz_eig(pca_result)
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+# Visualisation des variables dans l'espace des composantes principales
+fviz_pca_var(pca_result, col.var = "contrib")
+
+# Visualisation des individus dans l'espace réduit (composantes principales)
+fviz_pca_ind(pca_result, geom = "point")
+
+```
+
+
+
+
+```{r}
+# Sélection des deux premières composantes principales
+pca_data <- data.frame(pca_result$ind$coord[, 1:2])
+
+# Application de l'algorithme K-means
+set.seed(42)
+kmeans_model <- kmeans(pca_data, centers = 3, nstart = 25)
+
+# Visualisation des clusters
+library(ggplot2)
+ggplot(pca_data, aes(x = Dim.1, y = Dim.2, color = factor(kmeans_model$cluster))) +
+  geom_point() +
+  ggtitle("K-Means Clustering (PCA-reduced Data)")
+
+
+
+
+
+```
+
+
+
+
+
+
+```{r}
+# Régression linéaire multivariée
+lm_model <- lm(SalePrice ~ Gr.Liv.Area + Overall.Qual + Garage.Cars + TotRms.AbvGrd, data = selected_variables)
+
+# Résumé du modèle
+summary(lm_model)
+
+
+```
+
+
+
+
+
+
+
+
+
+```{r}
+# Normalisation des données (important pour PCA)
+scaled_data <- scale(selected_variables)
+
+# Réalisation de la PCA
+library(FactoMineR)
+pca_result <- PCA(scaled_data, graph = FALSE)
+
+# Visualisation des résultats de la PCA
+library(factoextra)
+fviz_eig(pca_result)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
