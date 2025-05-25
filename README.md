@@ -49,8 +49,8 @@ L’objectif principal est d’appliquer des techniques d’analyse de données 
 
 - `AmesHousing.csv` – Dataset utilisé  
 - `Ames_Analysis.Rmd` – Script de traitement et analyse
-- Projet.pdf – Rapport complet avec interprétation des résultats (version PDF)
-- Projet.docx – Rapport complet (version Word)
+- `Projet.pdf` – Rapport complet avec interprétation des résultats (version PDF)
+- `Projet.docx` – Rapport complet (version Word)
 - `README.md` – Ce fichier de documentation  
 
 ## ✅ Résultat attendu
@@ -60,5 +60,5 @@ Une meilleure compréhension des facteurs influençant le prix des logements, ap
 ## 🧑‍💻 Auteur
 
 Khedri Maha
-Étudiant en Big Data & Analyse de Données  
+Étudiante en Big Data & Analyse de Données 
 2025
