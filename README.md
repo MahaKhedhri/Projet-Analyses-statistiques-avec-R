@@ -48,7 +48,9 @@ L’objectif principal est d’appliquer des techniques d’analyse de données 
 ## 📎 Fichiers inclus
 
 - `AmesHousing.csv` – Dataset utilisé  
-- `Ames_Analysis.Rmd` – Script de traitement et analyse  
+- `Ames_Analysis.Rmd` – Script de traitement et analyse
+- Projet.pdf – Rapport complet avec interprétation des résultats (version PDF)
+- Projet.docx – Rapport complet (version Word)
 - `README.md` – Ce fichier de documentation  
 
 ## ✅ Résultat attendu
